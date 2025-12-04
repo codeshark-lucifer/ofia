@@ -1,50 +1,78 @@
 #include "ofia/headers/components/transform.hpp"
-#include "ofia/headers/components/gameobject.hpp" // full definition
-#include <iostream>                               // For logging
-#include <glm/gtx/string_cast.hpp>                // For glm::to_string
+#include "ofia/headers/components/gameobject.hpp"
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/quaternion.hpp>
+#include <glm/gtx/euler_angles.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 namespace ofia
 {
-    Transform::Transform()
-        : position(0.0f), rotation(0.0f), scale(1.0f)
-    {
-    }
+    Transform::Transform() = default;
 
     Transform::Transform(const glm::vec3 &pos, const glm::vec3 &rot, const glm::vec3 &sca)
         : position(pos), rotation(rot), scale(sca)
     {
+        UpdateLocalMatrix();
     }
 
-    glm::mat4 Transform::GetModelMatrix() const
+    void Transform::Translate(const glm::vec3 &delta)
     {
-        glm::mat4 model(1.0f);
-        model = glm::translate(model, position);
-        model = glm::rotate(model, glm::radians(rotation.x), glm::vec3(1, 0, 0));
-        model = glm::rotate(model, glm::radians(rotation.y), glm::vec3(0, 1, 0));
-        model = glm::rotate(model, glm::radians(rotation.z), glm::vec3(0, 0, 1));
-        model = glm::scale(model, scale);
-        return model;
+        position += delta;
+        UpdateLocalMatrix();
+    }
+
+    void Transform::Rotate(const glm::vec3 &delta)
+    {
+        rotation += delta;
+        UpdateLocalMatrix();
+    }
+
+    void Transform::SetScale(const glm::vec3 &newScale)
+    {
+        scale = newScale;
+        UpdateLocalMatrix();
+    }
+
+    void Transform::UpdateLocalMatrix()
+    {
+        glm::mat4 t = glm::translate(glm::mat4(1.0f), position);
+        glm::mat4 r = glm::toMat4(glm::quat(rotation)); // rotation from Euler
+        glm::mat4 s = glm::scale(glm::mat4(1.0f), scale);
+        localMatrix = t * r * s;
+    }
+
+    glm::mat4 Transform::GetLocalMatrix() const
+    {
+        return localMatrix;
     }
 
     glm::mat4 Transform::GetWorldMatrix() const
     {
-        if (!gameobject) // sanity check
-            return GetModelMatrix();
-
-        // Try to get parent
-        std::shared_ptr<GameObject> parentPtr = gameobject->parent.lock();
-
-        if (!parentPtr) // no parent
-            return GetModelMatrix();
-
-        // Recursively get parent's world matrix
-        glm::mat4 parentWorld = parentPtr->transform->GetWorldMatrix();
-
-        // Combine with local model matrix
-        return parentWorld * GetModelMatrix();
+        if (gameobject)
+        {
+            if (auto parentShared = gameobject->parent.lock()) // lock weak_ptr
+                return parentShared->transform->GetWorldMatrix() * localMatrix;
+        }
+        return localMatrix;
     }
 
-    void Transform::Translate(const glm::vec3 &delta) { position += delta; }
-    void Transform::Rotate(const glm::vec3 &delta) { rotation += delta; }
-    void Transform::SetScale(const glm::vec3 &newScale) { scale = newScale; }
+    void Transform::SetFromMatrix(const glm::mat4 &mat)
+    {
+        // Extract scale
+        scale.x = glm::length(glm::vec3(mat[0]));
+        scale.y = glm::length(glm::vec3(mat[1]));
+        scale.z = glm::length(glm::vec3(mat[2]));
+
+        // Extract position
+        position = glm::vec3(mat[3]);
+
+        // Extract rotation (assumes uniform scale)
+        glm::mat3 rotMat;
+        rotMat[0] = glm::vec3(mat[0]) / scale.x;
+        rotMat[1] = glm::vec3(mat[1]) / scale.y;
+        rotMat[2] = glm::vec3(mat[2]) / scale.z;
+
+        rotation = glm::eulerAngles(glm::quat_cast(rotMat));
+        UpdateLocalMatrix();
+    }
 }

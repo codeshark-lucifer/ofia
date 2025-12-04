@@ -10,7 +10,7 @@ REM Generate build system with CMake (Ninja)
 cmake -B build -G "Ninja"
 
 REM Build the project
-cmake --build build
+cmake --build build -j
 
 if %errorlevel% neq 0 (
     echo Build failed!

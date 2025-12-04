@@ -15,26 +15,36 @@ namespace ofia
         platform = std::make_unique<Platform>(WINDOW_WIDTH, WINDOW_HEIGHT, APP_NAME);
 
         glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-        glEnable(GL_DEPTH_TEST); // Enable depth testing
+        glEnable(GL_DEPTH_TEST);              // Enable depth testing
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f); // Set background color to a dark teal
 
         auto camera = std::make_shared<Camera>(WINDOW_WIDTH, WINDOW_HEIGHT);
-        auto shader = std::make_shared<Shader>("assets/shaders/basic.glsl");
+        auto shader = std::make_shared<Shader>("assets/shaders/glsl/basic.glsl");
         scene = std::make_unique<Scene>(camera, shader);
-        
+
         glm::vec3 lightPos = glm::vec3(1.2f, 1.0f, 2.0f);
         auto light = scene->CreateGameObject("Light");
         light->AddComponent<Light>(lightPos, glm::vec3(1.0f));
-        
+
         AssetLoader asset("assets/models/cube.fbx");
-        scene->AddGameObject(asset.gameObject);
-        if (asset.gameObject && asset.gameObject->transform) {
-            asset.gameObject->transform->SetScale(glm::vec3(10.0f)); // Scale it up significantly
-        }
+        scene->AddGameObject(asset.root);
     }
 
     void Application::Run()
     {
+        // Store this pointer in GLFW window
+        glfwSetWindowUserPointer(platform->GetWindow(), this);
+
+        // Set framebuffer resize callback
+        glfwSetFramebufferSizeCallback(platform->GetWindow(), [](GLFWwindow *window, int width, int height)
+                                       {
+        auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+        if (app && app->scene)
+        {
+            app->scene->OnResize(width, height);
+        }
+        glViewport(0, 0, width, height); });
+
         LastTime = static_cast<float>(glfwGetTime());
         scene->Awake();
         scene->Start();
@@ -45,18 +55,14 @@ namespace ofia
             float dt = time - LastTime;
             LastTime = time;
 
-            // Update transforms, physics, scripts
-            scene->FixedUpdate(dt); // physics / fixed timestep
-            scene->Update(dt);      // game logic, input
-            scene->LateUpdate(dt);  // finalize transforms, animations
+            scene->FixedUpdate(dt);
+            scene->Update(dt);
+            scene->LateUpdate(dt);
 
-            // Render the scene
-            scene->Render(); // draw everything to the screen
+            scene->Render();
 
-            // Swap buffers and poll OS events
             platform->SwapBuffers();
             platform->PollEvents();
         }
     }
-
 }
