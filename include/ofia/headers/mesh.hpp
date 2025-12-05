@@ -30,14 +30,14 @@ namespace ofia
             vao->Bind(); // Bind VAO first
 
             vbo = std::make_unique<VBO>();
-            vbo->Bind(); // Bind VBO
+            vbo->Bind();                                  // Bind VBO
             vbo->SetData(this->vertices, GL_STATIC_DRAW); // Set VBO data
 
             ebo = std::make_unique<EBO>();
-            ebo->Bind(); // Bind EBO
+            ebo->Bind();                                 // Bind EBO
             ebo->SetData(this->indices, GL_STATIC_DRAW); // Set EBO data
-            
-            Setup(); // Configure attributes for the bound VAO
+
+            Setup();       // Configure attributes for the bound VAO
             vao->Unbind(); // Unbind VAO (safe practice after setup)
         }
 

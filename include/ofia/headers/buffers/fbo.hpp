@@ -1,53 +1,32 @@
 #pragma once
 #include <glad/glad.h>
-#include <memory>
-
+#include <iostream>
 namespace ofia
 {
     class FBO
     {
     public:
-        // Constructor
-        // multisample = true → Create a multisampled color buffer
-        FBO(int width, int height, bool multisample = false, int samples = 4);
-
+        FBO(int width, int height, unsigned int samples = 4);
         ~FBO();
 
-        // Bind / Unbind framebuffer
-        void Bind() const;
-        void Unbind() const;
+        void Bind();   // bind MSAA FBO
+        void Unbind(); // blit to post-process FBO → screen
+        void Resize(int width, int height);
 
-        // Resize framebuffer and all attachments
-        void Resize(int newWidth, int newHeight);
-
-        // Blit (resolve) from MSAA → normal FBO
-        void BlitTo(const FBO &destination) const;
-
-        // Get color texture ID (only valid for non-multisample FBOs)
-        unsigned int GetTexture() const { return colorTexture; }
-
-        inline int Width() const { return width; }
-        inline int Height() const { return height; }
-        inline bool IsMSAA() const { return multisample; }
+        unsigned int GetTexture() const { return postProcessingTexture; }
 
     private:
-        void Create();
-        void Destroy();
+        void Init();
 
     private:
-        unsigned int fbo = 0;
-
-        // Non-MSAA texture
-        unsigned int colorTexture = 0;
-
-        // MSAA renderbuffer color attachment
-        unsigned int colorBufferMSAA = 0;
-
-        // Depth attachments (renderbuffer)
-        unsigned int depthBuffer = 0;
-
         int width, height;
-        bool multisample;
-        int samples;
+        unsigned int samples;
+
+        unsigned int FBO_ID = 0;
+        unsigned int texture = 0; // MSAA color texture
+        unsigned int RBO_ID = 0;  // MSAA depth-stencil
+
+        unsigned int postProcessingFBO = 0;
+        unsigned int postProcessingTexture = 0;
     };
 }

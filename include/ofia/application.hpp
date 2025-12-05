@@ -12,10 +12,11 @@ namespace ofia
     public:
         Application();
         virtual ~Application() = default;
-
         void Run();
 
     private:
+        void DrawEditorUI();
+        std::shared_ptr<GameObject> selectedObject = nullptr;
         std::unique_ptr<Platform> platform = nullptr;
         std::unique_ptr<Model> model = nullptr;
         std::unique_ptr<Scene> scene = nullptr;

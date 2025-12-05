@@ -27,6 +27,18 @@ namespace ofia
         UpdateLocalMatrix();
     }
 
+    void Transform::SetPosition(const glm::vec3 &newPos)
+    {
+        position = newPos;
+        UpdateLocalMatrix();
+    }
+
+    void Transform::SetRotation(const glm::vec3 &newRot)
+    {
+        rotation = newRot;
+        UpdateLocalMatrix();
+    }
+
     void Transform::SetScale(const glm::vec3 &newScale)
     {
         scale = newScale;

@@ -32,6 +32,7 @@ set(SOURCES
     ${SRC_DIR}/core/scene.cpp
     ${SRC_DIR}/core/transform.cpp
     ${SRC_DIR}/core/framebuffer.cpp
+    ${SRC_DIR}/core/shadowbuffer.cpp
 
     ${IMGUI_DIR}/imgui.cpp
     ${IMGUI_DIR}/imgui_demo.cpp

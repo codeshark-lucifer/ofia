@@ -1,14 +1,16 @@
 #pragma once
+#include <memory>
+#include <vector>
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-#include <memory>
-#include <vector>
 #include <ofia/headers/camera.hpp>
 #include <ofia/headers/shader.hpp>
 #include <ofia/headers/components/gameobject.hpp>
 #include <ofia/headers/quad.hpp>
 #include <ofia/headers/buffers/fbo.hpp>
+#include <ofia/headers/buffers/sbo.hpp>
 
 namespace ofia
 {
@@ -28,25 +30,25 @@ namespace ofia
         void Render();
         void OnResize(int width, int height);
 
-        std::shared_ptr<GameObject> CreateGameObject(const char *name)
-        {
-            auto go = std::make_shared<GameObject>(name);
-            gameObjects.push_back(go);
-            return go;
-        }
-        void AddGameObject(const std::shared_ptr<GameObject> &obj)
-        {
-            gameObjects.push_back(obj);
-        }
+        std::shared_ptr<GameObject> CreateGameObject(const char *name);
+        void AddGameObject(const std::shared_ptr<GameObject> &obj);
+        std::vector<std::shared_ptr<GameObject>> GetGameObjects() { return gameObjects; }
 
     private:
+        float gamma = 2.2f;
+        float linearBackground = 0.1f;
+        glm::mat4 lightSpaceMatrix;
         std::vector<std::shared_ptr<GameObject>> gameObjects;
 
         std::shared_ptr<Camera> defaultCamera = nullptr;
         std::shared_ptr<Shader> defaultShader = nullptr;
         std::shared_ptr<Shader> framebufferShader = nullptr;
+        std::shared_ptr<Shader> shadowbufferShader = nullptr;
 
-        std::unique_ptr<FBO> framebuffer = nullptr;
-        std::unique_ptr<Quad> defaultQauad = nullptr;
+        std::unique_ptr<Quad> defaultQuad = nullptr;
+
+        // MSAA FBO (this FBO contains both the multisampled and resolved textures)
+        std::unique_ptr<FBO> multisampleFBO = nullptr;
+        std::unique_ptr<SBO> shadowbuffer = nullptr;
     };
 }

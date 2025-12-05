@@ -1,111 +1,107 @@
 #include "ofia/headers/buffers/fbo.hpp"
-#include <iostream>
-
 namespace ofia
 {
-    FBO::FBO(int width, int height, bool multisample, int samples)
-        : width(width), height(height), multisample(multisample), samples(samples)
+    FBO::FBO(int w, int h, unsigned int s)
+        : width(w), height(h), samples(s)
     {
-        Create();
+        Init();
     }
 
     FBO::~FBO()
     {
-        Destroy();
+        glDeleteFramebuffers(1, &FBO_ID);
+        glDeleteTextures(1, &texture);
+        glDeleteRenderbuffers(1, &RBO_ID);
+
+        glDeleteFramebuffers(1, &postProcessingFBO);
+        glDeleteTextures(1, &postProcessingTexture);
     }
 
-    void FBO::Create()
+    void FBO::Init()
     {
-        // Cleanup if already exists
-        Destroy();
+        // ================= MULTISAMPLED FBO =================
+        glGenFramebuffers(1, &FBO_ID);
+        glBindFramebuffer(GL_FRAMEBUFFER, FBO_ID);
 
-        glGenFramebuffers(1, &fbo);
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        // ---- MSAA color buffer ----
+        glGenTextures(1, &texture);
+        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, texture);
+        glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, samples, GL_RGBA16F, width, height, GL_TRUE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, texture, 0);
 
-        if (multisample)
-        {
-            // Create multisample color renderbuffer
-            glGenRenderbuffers(1, &colorBufferMSAA);
-            glBindRenderbuffer(GL_RENDERBUFFER, colorBufferMSAA);
-            glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, GL_RGB8, width, height);
-            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colorBufferMSAA);
+        // ---- MSAA depth+stencil ----
+        glGenRenderbuffers(1, &RBO_ID);
+        glBindRenderbuffer(GL_RENDERBUFFER, RBO_ID);
+        glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, GL_DEPTH24_STENCIL8, width, height);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO_ID);
 
-            // Depth-stencil renderbuffer
-            glGenRenderbuffers(1, &depthBuffer);
-            glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
-            glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, GL_DEPTH24_STENCIL8, width, height);
-            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
-        }
-        else
-        {
-            // Create normal color texture
-            glGenTextures(1, &colorTexture);
-            glBindTexture(GL_TEXTURE_2D, colorTexture);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture, 0);
+        // ---- MUST set draw buffers ----
+        GLenum attachments[1] = {GL_COLOR_ATTACHMENT0};
+        glDrawBuffers(1, attachments);
 
-            // Depth-stencil renderbuffer
-            glGenRenderbuffers(1, &depthBuffer);
-            glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
-            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
-            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
-        }
-
-        // Check framebuffer completeness
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-            std::cerr << "ERROR: Framebuffer not complete!" << std::endl;
+            std::cout << "ERROR: MSAA FBO incomplete!" << std::endl;
 
-        // Unbind
+        // ================= POST-PROCESSING FBO =================
+        glGenFramebuffers(1, &postProcessingFBO);
+        glBindFramebuffer(GL_FRAMEBUFFER, postProcessingFBO);
+
+        glGenTextures(1, &postProcessingTexture);
+        glBindTexture(GL_TEXTURE_2D, postProcessingTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, postProcessingTexture, 0);
+
+        // Again MUST set draw buffers
+        glDrawBuffers(1, attachments);
+
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            std::cout << "ERROR: postProcessing FBO incomplete!" << std::endl;
+
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 
-    void FBO::Destroy()
+    void FBO::Bind()
     {
-        if (colorTexture) { glDeleteTextures(1, &colorTexture); colorTexture = 0; }
-        if (colorBufferMSAA) { glDeleteRenderbuffers(1, &colorBufferMSAA); colorBufferMSAA = 0; }
-        if (depthBuffer) { glDeleteRenderbuffers(1, &depthBuffer); depthBuffer = 0; }
-        if (fbo) { glDeleteFramebuffers(1, &fbo); fbo = 0; }
+        glBindFramebuffer(GL_FRAMEBUFFER, FBO_ID);
+        glViewport(0, 0, width, height);
     }
 
-    void FBO::Bind() const
+    void FBO::Unbind()
     {
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    }
-
-    void FBO::Unbind() const
-    {
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
-
-    void FBO::Resize(int newWidth, int newHeight)
-    {
-        if (width == newWidth && height == newHeight) return;
-
-        width = newWidth;
-        height = newHeight;
-
-        Create();
-    }
-
-    void FBO::BlitTo(const FBO &destination) const
-    {
-        if (!multisample)
-        {
-            std::cerr << "Warning: BlitTo called on non-MSAA FBO!" << std::endl;
-            return;
-        }
-
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, destination.fbo);
+        // resolve MSAA → normal texture
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, FBO_ID);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, postProcessingFBO);
 
         glBlitFramebuffer(
             0, 0, width, height,
-            0, 0, destination.width, destination.height,
-            GL_COLOR_BUFFER_BIT, GL_NEAREST
-        );
+            0, 0, width, height,
+            GL_COLOR_BUFFER_BIT,
+            GL_NEAREST);
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
-}
+
+    void FBO::Resize(int w, int h)
+    {
+        if (w == width && h == height)
+            return;
+
+        width = w;
+        height = h;
+
+        glDeleteTextures(1, &texture);
+        glDeleteRenderbuffers(1, &RBO_ID);
+        glDeleteFramebuffers(1, &FBO_ID);
+
+        glDeleteTextures(1, &postProcessingTexture);
+        glDeleteFramebuffers(1, &postProcessingFBO);
+
+        Init();
+    }
+} // namespace ofia
